@@ -1,0 +1,24 @@
+{
+  "name": "qb",
+  "version": "1.0.0",
+  "description": "A MySQL query builder for JS",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viclec/qb.git"
+  },
+  "keywords": [
+    "query",
+    "builder",
+    "mysql"
+  ],
+  "author": "Victor Lecomte",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/viclec/qb/issues"
+  },
+  "homepage": "https://github.com/viclec/qb#readme"
+}
