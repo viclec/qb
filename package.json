@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/viclec/qb/issues"
   },
-  "homepage": "https://github.com/viclec/qb#readme"
+  "homepage": "https://github.com/viclec/qb#readme",
+  "dependencies": {
+    "mysql": "^2.16.0"
+  }
 }
