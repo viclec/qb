@@ -1,198 +1,272 @@
-module.exports = {
-  select: select,
-  selectAs: selectAs,
-  insertMultiple: insertMultiple,
-  insert: insert,
-  onDuplicateUpdate: onDuplicateUpdate,
-  update: update,
-  delete: _delete,
-  orderBy: orderBy,
-  where: where,
-  whereJoin: whereJoin,
-  join: join,
-  joinValue: joinValue,
-  limit: limit,
-  execute: execute,
-  format: format
-}
-
-/* Method for executing query with parameters */
-function execute(query, insertParams, done) {
-  POOL.getConnection(function(error, connection) {
-    if(error){
-      done(error);
-    }else{
-      connection.query(query, insertParams, function (error, results, columns) {
-        connection.release();
-        if(error){
-          done(error);
-        }else{
-          done(null, results);
-        }
-      })
-    }
-  })
-}
-
-/* Method for formating query with parameters. Useful for debugging */
-function format(query, insertParams) {
-  return MYSQL.format(query, insertParams)
-}
-
-/* Method for building query with SELECT clause */
-function select(table, fieldsToSelect, query, insertParams) {
-  query += 'SELECT ?? FROM ?? ';
-  insertParams.push(fieldsToSelect, table);
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with SELECT AS clause */
-function selectAs(table, fieldsToSelect, query, insertParams) {
-  query += 'SELECT ' + fieldsToSelect + ' FROM ?? ';
-  insertParams.push(table);
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for creating new row */
-function insert(table, rows) {
-  var query = 'INSERT INTO ?? SET ?;';
-  var insertParams = [
-    table,
-    rows
-  ];
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for creating multiple rows */
-function insertMultiple(table, fields, rows) {
-  var query = 'INSERT INTO ?? (??) VALUES ?';
-  var insertParams = [
-    table,
-    fields,
-    rows
-  ];
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for updating in place of insertion */
-function onDuplicateUpdate(fields, query, insertParams) {
-  var isFirst = true;
-  query += ' ON DUPLICATE KEY UPDATE ';
-  fields.forEach(field => {
-    if(isFirst){
-      isFirst = false;
-      query += '??=VALUES(??)'
-    }else{
-      query += ', ??=VALUES(??)'
-    }
-    insertParams.push(field, field);
-  })
-
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with UPDATE clause */
-function update(table, fieldsToUpdate, query, insertParams) {
-  query += 'UPDATE ?? SET ?';
-  insertParams.push(table, fieldsToUpdate);
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with DELETE clause */
-function _delete(table, query, insertParams) {
-  query += 'DELETE FROM ??';
-  insertParams.push(table);
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with JOIN ON clause */
-function join(tableToJoin, onClause, query, insertParams) {
-  if(typeof onClause === 'object' && onClause.length === 2){
-    query += ' JOIN ?? ON ?? = ??';
-    insertParams.push(tableToJoin, onClause[0], onClause[1]);
-  }else{
-    query += ' JOIN ?? ';
-    insertParams.push(tableToJoin);
-  }
-  return {query: query, insertParams: insertParams};
-}
-
-// TODO replace with better join()
-function joinValue(tableToJoin, onClause, query, insertParams) {
-  if(typeof onClause === 'object' && onClause.length === 2){
-    query += ' JOIN ?? ON ?? = ?';
-    insertParams.push(tableToJoin, onClause[0], onClause[1]);
-  }else{
-    query += ' JOIN ?? ';
-    insertParams.push(tableToJoin);
-  }
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with ORDER BY clause */
-function orderBy(fieldToSort, typeOfSort, query, insertParams) {
-  query += ' ORDER BY ?? ' + typeOfSort;
-  insertParams.push(fieldToSort);
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with ORDER BY clause */
-function limit(page, limit, query, insertParams) {
-  query += ' LIMIT ' + page + ',' + limit;
-  return {query: query, insertParams: insertParams};
-}
-
-/* Method for building query with WHERE clause */
-function whereJoin(fieldsToFilter, query, insertParams) { //TODO expand where for other filters such as IN(), BETWEEN etc.
-  var isFirst = true;
-  fieldsToFilter.forEach(clause => {
-    if(isFirst){
-      isFirst = false;
-      query += ' WHERE ?? ' + clause.operation + ' (??)';
-      insertParams.push(clause.field, clause.value);
-    }else{
-      query += ' ' + (clause.boolOp || 'AND') + ' ?? ' + clause.operation + ' (??)';
-      insertParams.push(clause.field, clause.value);
-    }
-  });
-  return {
-    query: query,
-    insertParams: insertParams
-  };
-}
-
-/* Method for building query with WHERE clause */
-function where(fieldsToFilter, query, insertParams) {
-  query += ' WHERE';
-  return whereGroup(fieldsToFilter, query, insertParams, true)
-}
-
-/* Method for grouping boolean clauses */
-function whereGroup(fieldsToFilter, query, insertParams, isFirstGroup) { //TODO expand where for other filters such as BETWEEN etc.
-  if(!isFirstGroup){
-    query += ' AND';
+module.exports = class Query {
+  constructor(query, params) {
+    this.query = query || '';
+    this.params = params || [];
   }
 
-  var isFirst = true;
-  query += ' (';
-  fieldsToFilter.forEach((clause, i) => {
-    if(typeof clause === 'object' && clause.length > 0){
-      var result = whereGroup(clause, query, insertParams, i === 0)
-      query = result.query;
-      insertParams = result.insertParams;
-    }else{
+  /* Method for executing query with parameters */
+  execute(done) {
+    POOL.getConnection(function(error, connection) {
+      if(error){
+        done(error);
+      }else{
+        connection.query(this.query, this.params, function (error, results, columns) {
+          connection.release();
+          if(error){
+            done(error);
+          }else{
+            done(null, results);
+          }
+        })
+      }
+    })
+  }
+
+  /* Method for formating query with parameters. Useful for debugging */
+  format() {
+    return MYSQL.format(this.query, this.params)
+  }
+
+  /* Method for building query with SELECT clause */
+  select(table, fieldsToSelect) {
+    this.query += 'SELECT ?? FROM ?? ';
+    this.params.push(fieldsToSelect, table);
+    return this;
+  }
+
+  /* Method for building query with SELECT AS clause */
+  selectAs(table, fieldsToSelect) {
+    this.query += 'SELECT ' + fieldsToSelect + ' FROM ?? ';
+    this.params.push(table);
+    return this;
+  }
+
+  /* Method for creating new row */
+  insert(table, rows) {
+    this.query = 'INSERT INTO ?? SET ?;';
+    this.params = [
+      table,
+      rows
+    ];
+    return this;
+  }
+
+  /* Method for creating multiple rows */
+  insertMultiple(table, fields, rows) {
+    this.query = 'INSERT INTO ?? (??) VALUES ?';
+    this.params = [
+      table,
+      fields,
+      rows
+    ];
+    return this;
+  }
+
+  /* Method for updating in place of insertion */
+  onDuplicateUpdate(fields) {
+    var isFirst = true;
+    this.query += ' ON DUPLICATE KEY UPDATE ';
+    fields.forEach(field => {
       if(isFirst){
         isFirst = false;
-        query += ' ?? ' + clause.operation + ' (' + (clause.isField ? '??' : '?') + ')';
+        this.query += '??=VALUES(??)'
       }else{
-        query += ' ' + (clause.boolOp || 'AND') + ' ?? ' + clause.operation + ' (' + (clause.isField ? '??' : '?') + ')';
+        this.query += ', ??=VALUES(??)'
       }
-      insertParams.push(clause.field, clause.value);
+      this.params.push(field, field);
+    })
+
+    return this;
+  }
+
+  /* Method for updating in place of insertion */
+  onDuplicateUpdateIf(fields, conditions) {
+    var isFirst = true;
+    this.query += ' ON DUPLICATE KEY UPDATE ';
+    fields.forEach(field => {
+      if(isFirst){
+        isFirst = false;
+        this.query += '??=IF(';
+        this.params.push(field);
+        var ifStatement = this.whereGroup(conditions, true);
+
+        this.query = ifStatement.query;
+        this.params = ifStatement.params;
+
+        this.query += ', VALUES(??), ??)';
+      }else{
+        this.query += ',??=IF(';
+        this.params.push(field);
+
+        this.whereGroup(conditions, true);
+
+        this.query += ', VALUES(??), ??)';
+      }
+      this.params.push(field, field);
+    })
+
+    return this;
+  }
+
+  /* Method for building query with UPDATE clause */
+  update(table, fieldsToUpdate) {
+    this.query += 'UPDATE ?? SET ?';
+    this.params.push(table, fieldsToUpdate);
+    return this;
+  }
+
+  /* Method for building query with UPDATE clause */
+  updateSimple(table) {
+    this.query += 'UPDATE ?? ';
+    this.params.push(table);
+    return this;
+  }
+
+  /* Method for building query with UPDATE clause */
+  set(fields) {
+    this.query += ' SET ?';
+    this.params.push(fields);
+    return this;
+  }
+
+  /* Method for building query with DELETE clause */
+  _delete(table) {
+    this.query += 'DELETE FROM ??';
+    this.params.push(table);
+    return this;
+  }
+
+  /* Method for building query with JOIN ON clause */
+  join(tableToJoin, onClause) {
+    if(typeof onClause === 'object' && onClause.length === 2){
+      this.query += ' JOIN ?? ON ?? = ??';
+      this.params.push(tableToJoin, onClause[0], onClause[1]);
+    }else if(typeof onClause === 'object' && onClause.length === 1){
+      this.query += ' JOIN ?? ON ';
+      this.params.push(tableToJoin);
+      return this.whereGroup(onClause[0], true)
+    }else{
+      this.query += ' JOIN ?? ';
+      this.params.push(tableToJoin);
     }
-  });
-  query += ')';
-  return {
-    query: query,
-    insertParams: insertParams
-  };
+    return this;
+  }
+
+  /* Method for building query with LEFT JOIN ON clause */
+  joinLeft(tableToJoin, onClause) {
+    if(typeof onClause === 'object' && onClause.length === 2){
+      this.query += ' LEFT JOIN ?? ON ?? = ??';
+      this.params.push(tableToJoin, onClause[0], onClause[1]);
+    }else if(typeof onClause === 'object' && onClause.length === 1){
+      this.query += ' LEFT JOIN ?? ON ';
+      this.params.push(tableToJoin);
+      return this.whereGroup(onClause[0], true)
+    }else{
+      this.query += ' LEFT JOIN ?? ';
+      this.params.push(tableToJoin);
+    }
+    return this;
+  }
+
+  // TODO replace with better join()
+  joinValue(tableToJoin, onClause) {
+    if(typeof onClause === 'object' && onClause.length === 2){
+      this.query += ' JOIN ?? ON ?? = ?';
+      this.params.push(tableToJoin, onClause[0], onClause[1]);
+    }else{
+      this.query += ' JOIN ?? ';
+      this.params.push(tableToJoin);
+    }
+    return this;
+  }
+
+  /* Method for building query with ORDER BY clause */
+  orderBy(fieldToSort, typeOfSort) {
+    this.query += ' ORDER BY ?? ' + (typeOfSort || '');
+    this.params.push(fieldToSort);
+    return this;
+  }
+
+  /* Method for building query with GROUP BY clause */
+  groupBy(fieldToGroup) {
+    this.query += ' GROUP BY ?? ';
+    this.params.push(fieldToGroup);
+    return this;
+  }
+
+  /* Method for building query with GROUP BY clause */
+  groupByValue(fieldToGroup) {
+    this.query += ' GROUP BY ' + fieldToGroup;
+    return this;
+  }
+
+  /* Method for building query with ORDER BY clause */
+  limit(page, limit) {
+    this.query += ' LIMIT ' + page + ',' + limit;
+    return this;
+  }
+
+  /* Method for building query with WHERE clause */
+  whereJoin(fieldsToFilter) { //TODO expand where for other filters such as IN(), BETWEEN etc.
+    var isFirst = true;
+    fieldsToFilter.forEach(clause => {
+      if(isFirst){
+        isFirst = false;
+        this.query += ' WHERE ?? ' + clause.operation + ' (??)';
+        this.params.push(clause.field, clause.value);
+      }else{
+        this.query += ' ' + (clause.boolOp || 'AND') + ' ?? ' + clause.operation + ' (??)';
+        this.params.push(clause.field, clause.value);
+      }
+    });
+    return this;
+  }
+
+  /* Method for building query with WHERE clause */
+  where(fieldsToFilter) {
+    this.query += ' WHERE';
+    return this.whereGroup(fieldsToFilter, true)
+  }
+
+  /* Method for grouping boolean clauses */
+  whereGroup(fieldsToFilter, isFirstGroup, groupBoolOp) { //TODO expand where for other filters such as BETWEEN etc.
+    if(!isFirstGroup){
+      this.query += ' ' + (groupBoolOp || 'AND');
+    }
+
+    var isFirst = true;
+    var boolOp = null;
+    this.query += ' (';
+    fieldsToFilter.forEach((clause, i) => {
+      if(typeof clause === 'object' && clause.length > 0){
+        var result = this.whereGroup(clause, i === 0, boolOp)
+        this.query = result.query;
+        this.params = result.params;
+      }else{
+
+        if(isFirst){
+          isFirst = false;
+        }else{
+          this.query += ' ' + (clause.boolOp || 'AND')
+        }
+
+        this.params.push(clause.field);
+
+        this.query += ' ?? ' + clause.operation;
+
+        if(clause.value){
+          if(clause.dateFormat){
+            this.query += ' DATE_FORMAT(' + (clause.isField ? '??' : '?') + ', ?)';
+            this.params.push(clause.value, clause.dateFormat);
+          }else{
+            this.query += ' (' + (clause.isField ? '??' : '?') + ')';
+            this.params.push(clause.value);
+          }
+        }
+      }
+      boolOp = clause.boolOp;
+    });
+    this.query += ')';
+    return this;
+  }
 }
