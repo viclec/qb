@@ -6,11 +6,13 @@ module.exports = class Query {
 
   /* Method for executing query with parameters */
   execute(done) {
+    var query = this.query;
+    var params = this.params;
     POOL.getConnection(function(error, connection) {
       if(error){
         done(error);
       }else{
-        connection.query(this.query, this.params, function (error, results, columns) {
+        connection.query(query, params, function (error, results, columns) {
           connection.release();
           if(error){
             done(error);
