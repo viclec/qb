@@ -17,7 +17,7 @@ module.exports = class Query {
           if(error){
             done(error);
           }else{
-            done(null, results);
+            done(null, results, columns);
           }
         })
       }
